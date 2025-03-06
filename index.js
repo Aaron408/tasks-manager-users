@@ -5,7 +5,19 @@ const bcrypt = require("bcrypt");
 
 require("dotenv").config();
 
-var serviceAccount = require("../task-manager-credentials.json");
+const serviceAccount = {
+  type: process.env.TYPE,
+  project_id: process.env.PROJECT_ID,
+  private_key_id: process.env.PRIVATE_KEY_ID,
+  private_key: process.env.PRIVATE_KEY.replace(/\\n/g, "\n"),
+  client_email: process.env.CLIENT_EMAIL,
+  client_id: process.env.CLIENT_ID,
+  auth_uri: process.env.AUTH_URI,
+  token_uri: process.env.TOKEN_URI,
+  auth_provider_x509_cert_url: process.env.AUTH_PROVIDER_CERT_URL,
+  client_x509_cert_url: process.env.CLIENT_CERT_URL,
+  universe_domain: process.env.UNIVERSE_DOMAIN,
+};
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -81,6 +93,10 @@ const verifyToken = (allowedRoles) => async (req, res, next) => {
       .json({ message: "Error al verificar el token.", error: error.message });
   }
 };
+
+app.get("/", (req, res) => {
+  res.send("Users service running!");
+});
 
 app.post("/register", async (req, res) => {
   const { username, fullName, birthDate, email, password } = req.body;
