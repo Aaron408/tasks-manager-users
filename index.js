@@ -58,13 +58,56 @@ const verifyToken = (allowedRoles) => async (req, res, next) => {
     const tokenData = tokenSnapshot.docs[0].data();
     console.log("Datos del token:", tokenData);
 
-    const now = new Date();
-    if (new Date(tokenData.expiresAt) < now) {
-      console.log("Token expirado");
-      return res.status(401).json({ message: "Token ha expirado." });
+    //Verificar si el token ha expirado usando Timestamp de Firestore
+    const now = admin.firestore.Timestamp.now();
+
+    if (tokenData.expiresAt instanceof admin.firestore.Timestamp) {
+      if (tokenData.expiresAt.toMillis() < now.toMillis()) {
+        console.log("Token expirado");
+        return res.status(401).json({ message: "Token ha expirado." });
+      }
+    } else {
+      try {
+        const expiresAtDate = new Date(tokenData.expiresAt);
+        if (isNaN(expiresAtDate.getTime())) {
+          console.log("Formato de fecha inválido:", tokenData.expiresAt);
+          return res
+            .status(401)
+            .json({ message: "Error en formato de fecha de expiración." });
+        }
+
+        if (expiresAtDate < new Date()) {
+          console.log("Token expirado");
+          return res.status(401).json({ message: "Token ha expirado." });
+        }
+      } catch (error) {
+        console.error("Error al procesar la fecha de expiración:", error);
+        return res
+          .status(401)
+          .json({ message: "Error al verificar la expiración del token." });
+      }
     }
 
-    // Obtener el usuario desde la colección users
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.role && !allowedRoles.includes(decoded.role)) {
+        console.log("Permisos insuficientes desde JWT. Rol:", decoded.role);
+        return res.status(403).json({
+          message: "Acceso denegado. Permisos insuficientes.",
+        });
+      }
+
+      if (decoded.role) {
+        req.user = { id: decoded.id, role: decoded.role, email: decoded.email };
+        return next();
+      }
+    } catch (jwtError) {
+      console.log(
+        "Error al verificar JWT, continuando con verificación en DB:",
+        jwtError.message
+      );
+    }
+
     const usersRef = db.collection("users");
     const userSnapshot = await usersRef.doc(tokenData.userId).get();
 
